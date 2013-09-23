@@ -4,15 +4,92 @@ from random import shuffle,randint
 
 from math import sin,cos,radians,sqrt,atan2,degrees
 
+from copy import copy
+
+def main ():
+
+   routes      = makeRoutes(20,[20,30,40,50      ])
+   routes.extend(makeRoutes( 4,[20,30,40,50,60   ]))
+   routes.extend(makeRoutes( 4,[20,30,40,50,60,70]))
+   routes.extend(makeRoutes( 2,[ 5,10,15,20,25,30,35,40,45,50,55,60,65,70,75]))
 
 
-def makeRoutes ():
+   printRoutes(routes)
+
+
+
+
+
+def makeRoutes (routeCount, segmentLengths):
+
+   bounds = Bounds(-50, 50, -100, 0)
+   startDistances=[20,40,60,80,100]
+
+
    degMod = 5
 
-   count = 4
 
-   segmentLengths = [20,30,40,50]
-   startDistances=[20,40,60,80,100]
+   routes = []
+
+   for trial in range(routeCount):
+
+
+
+
+      start = Point(0 , -startDistances[randint(0,len(startDistances)-1)] )
+      goal  = Point([10,-10][trial<routeCount/2], 0 )
+
+
+
+      route = Route(start, goal, segmentLengths, degMod, bounds)
+
+      routes.append(route)
+
+   return routes
+
+
+def printRoutes (routes):
+   for route in routes:
+      route.printOut()
+
+   #print
+   #print "-"*35
+
+
+
+
+class Route(object):
+
+
+   #
+   #      N          0
+   #    W   E    270   90
+   #      S         180
+   #
+   #
+   #     g        0         g
+   #              |
+   #              |
+   #              |
+   #             20
+   #              |
+   #              |
+   #              |
+   #             40
+   #              |
+   #              |
+   #              |
+   #             60
+   #              |
+   #              |
+   #              |
+   #             80
+   #              |
+   #              |
+   #              |
+   #             100
+   #
+   #
 
 
    goalMessages = ["Every scout should ","We want scouts to "]
@@ -33,190 +110,227 @@ def makeRoutes ():
       "be Reverent",
    ]
 
-
-   runs = 20
-
-   for trial in range(runs):
-
-      bearings = count*[0]
+   tolerance = .5/12  # 1/2 inch
 
 
+   def __init__(self, start, goal, segmentLengths, degMod, bounds):
 
+      self.start = copy(start)
+      self.goal = copy(goal)
 
-      start = randint(0,len(startDistances)-1)
-
-      startDistance = startDistances[start]
+      count = len(segmentLengths)
 
 
 
-
-      #
-      #      N          0
-      #    W   E    270   90
-      #      S         180
-      #
-      #
-      #     g        0         g
-      #              |
-      #              |
-      #              |
-      #              A
-      #              |
-      #              |
-      #              |
-      #              B
-      #              |
-      #              |
-      #              |
-      #              C
-      #              |
-      #              |
-      #              |
-      #              D
-      #              |
-      #              |
-      #              |
-      #              E
-      #
-      #
-
-
-      goalNumber = [0,1][trial<runs/2]
-
-      goalN = 0
-      goalE = [10,-10][goalNumber]
-
-
-
-
-
-
-
+      self.segments = count*[0]
 
       while True:
          shuffle(segmentLengths)
-         #print "restart",startDistance,segmentLengths,
-         e = 0
-         n = -startDistance
+
+
+         # print "restart",start.north,segmentLengths,
+         p = copy(self.start)
          for i in range(count-2):
             d = segmentLengths[i]
+
+            trys = 0
             while True:
-               b = randint(0,360/degMod - 1) * degMod
-
-               de = d * sin(radians(b))
-               dn = d * cos(radians(b))
-
-               newN = n + dn
-               newE = e + de
-
-
-               if newN <= 0 and newN >= -100 and newE >= -50 and newE <= 50:
+               while True:
+                  b = randint(0,360/degMod - 1) * degMod
+                  if i==0 and (b <= 10 or abs(b-180) <= 10 or 360-b <= 10):
+                     continue  # the first segment should not be too close to the rope
                   break
 
-            n=newN
-            e=newE
-            bearings[i] = b
+               segment = Segment(d, b)
 
-         dist = distPoints(n,e,goalN,goalE)
+               newP = copy(p).addSegment(segment)
+
+               if bounds.contains(newP):
+                  break
+
+               trys += 1
+               if trys > 100:
+                  break;
+
+            if trys > 100:
+               continue
+
+            self.segments[i] = segment
+            p = newP
 
 
          # compute next to last point
 
-         newPoint = circleIntersect (n,e,segmentLengths[-2],goalN,goalE,segmentLengths[-1])
-
-         if newPoint == None:
-            #print "no intersect"
-            continue
-         [newN,newE] = newPoint
-
-         if newN > 0 or newN < -100 or newE < -50 or newE > 50:
-            #print "points out of bounds"
-            continue
-
-         bearings[-2] = int(round((360+degrees(atan2(  newE -  e    , newN  - n   )))/degMod )*degMod)%360
-         bearings[-1] = int(round((360+degrees(atan2(  goalE - newE , goalN - newN)))/degMod )*degMod)%360
+         intersections = circleIntersect (p, segmentLengths[-2],goal,segmentLengths[-1])
 
 
-         b = bearings[-2]
-         d = segmentLengths[-2]
+         validRoute = False
+         for  penultimateP in intersections :
+            if not bounds.contains(penultimateP):
+               #print "intersect point out of bounds"
+               continue
 
-         de = d * sin(radians(b))
-         dn = d * cos(radians(b))
+            b = int(round((360+ p.bearingTo(penultimateP))/degMod )*degMod)%360
+            self.segments[-2] = Segment(segmentLengths[-2], b)
+            p.addSegment(self.segments[-2])
 
-         n += dn
-         e += de
+            b = int(round((360+penultimateP.bearingTo(goal        ))/degMod )*degMod)%360
+            self.segments[-1] = Segment(segmentLengths[-1], b)
+            p.addSegment(self.segments[-1])
 
+            error = p.distTo(goal)
 
-         b = bearings[-1]
-         d = segmentLengths[-1]
+            if error < self.tolerance:
+               validRoute = True
+               break
 
-         de = d * sin(radians(b))
-         dn = d * cos(radians(b))
-
-         n += dn
-         e += de
-
-         error = distPoints(n,e,goalN,goalE)
-
-
-         if error > .5/12:
-            #print " rounding cause error > 1/2 inch"
-            continue
-
-         break
+         if validRoute:
+            break
 
 
+      self.check()
 
+   def printOut (self):
+
+
+      startIndex = -self.start.north/20 - 1
+
+
+      #print
+      #print "-"*35
+      #print
+      print "Start Point: %s (%d feet)"%(chr(ord("A")+startIndex),-self.start.north)
       print
-      print "-"*35
+      print "     Bearing    Distance"
+      print "    (magnetic)   (feet) "
+      print "    ----------  --------"
+      for i,segment in enumerate(self.segments):
+         print "%2d. %10d  %8d"%(i+1, segment.bearing, segment.distance)
       print
-      print "Start Point: %s (%d feet)"%(chr(ord("A")+start),startDistance)
-      print
-      print "    Bearing    Distance"
-      print "   (magnetic)   (feet) "
-      print "   ----------  --------"
-      for i in range(count):
-         print "%d. %10d  %8d"%(i+1,bearings[i],segmentLengths[i])
-      print
-      print goalMessages[goalNumber]+goalMessageSuffixes[trial % (len(goalMessageSuffixes)-1)]+"."
-      print
-
-   print
-   print "-"*35
+      print self.goalMessages[self.goal.east<0] + self.goalMessageSuffixes[randint(0,len(self.goalMessageSuffixes)-1)]+"."
+      print "$"
 
 
-def distPoints (x0,y0,x1,y1):
-   dx = x0-x1
-   dy = y0-y1
+   def check (self):
+      p = copy(self.start)
+      for segment in self.segments:
 
-   return sqrt(dx**2 + dy **2)
+         p.addSegment(segment)
+
+      err = p.distTo(self.goal)
+      if err > self.tolerance :
+         print p
+         print self.goal
+         print err * 12
+         exit(-1)
 
 
-def circleIntersect (x0,y0,r0,x1,y1,r1):
 
-   d = distPoints(x0,y0,x1,y1)
+
+def bearing (p0, p1):
+   return degrees(atan2(  p0.east - p1.east , p0.north - p1.north  ))
+
+
+
+def circleIntersect (p0,r0,p1,r1):
+
+   d = p0.distTo(p1)
+
+   if d == 0:
+      # circles have the same center
+      # in this case there are either no solutions or infinte soloutions
+      # neither works for us
+      return []
 
    if d > r0 + r1:
       #points are too far apart - no solution
-      return None
+      return []
 
-   if d <=  abs(r0 - r1):
-      #points are too close together - no solution
-      return None
+   if d <  abs(r0 - r1):
+      #points are too close together - one circle is entirely in the other - no solution
+      return []
+
 
    a = (r0**2 - r1**2 + d**2 ) / (2 * d)
 
    h = sqrt( r0**2 - a**2 )
 
+   e0 = p0.east
+   n0 = p0.north
 
-   x2 = x0 + a *( x1 - x0 ) / d
-   y2 = y0 + a *( y1 - y0 ) / d
-
-   x3 = x2 + h *( y1 - y0 ) / d
-   y3 = y2 - h *( x1 - x0 ) / d
-
-   return [x3,y3]
+   e1 = p1.east
+   n1 = p1.north
 
 
-makeRoutes()
+   n2 = n0 + a *( n1 - n0 ) / d
+   e2 = e0 + a *( e1 - e0 ) / d
 
+   n3 = n2 + h *( e1 - e0 ) / d
+   e3 = e2 - h *( n1 - n0 ) / d
+
+   result = [Point(e3,n3)]
+
+
+   if h>0:
+      n3 = n2 - h *( e1 - e0 ) / d
+      e3 = e2 + h *( n1 - n0 ) / d
+      result.append(Point(e3,n3))
+
+
+   return result
+
+
+
+
+class Point(object):
+
+    def __init__(self, e, n):
+        self.east = e
+        self.north = n
+
+
+    def addSegment (self, segment):
+       self.east  += segment.distance * sin(radians(segment.bearing))
+       self.north += segment.distance * cos(radians(segment.bearing))
+       return self
+
+    def bearingTo (self,p):
+       return degrees(atan2(  p.east - self.east , p.north - self.north  ))
+
+    def distTo (self,p):
+       de = self.east  - p.east
+       dn = self.north - p.north
+
+       return sqrt(de**2 + dn **2)
+
+
+
+    def __str__(self):
+       return "east=%f north=%f"%(self.east,self.north)
+
+
+
+
+
+class Segment(object):
+   def __init__(self, distance, bearing):
+       self.distance = distance
+       self.bearing  = bearing
+
+class Bounds(object):
+   def __init__(self, eastMin, eastMax, northMin, northMax):
+       self.eastMin = eastMin
+       self.eastMax = eastMax
+       self.northMin = northMin
+       self.northMax = northMax
+
+   def contains (self, p):
+      return p.north <= self.northMax and p.north >= self.northMin and p.east >= self.eastMin and p.east <= self.eastMax
+
+
+
+
+
+
+
+main()
