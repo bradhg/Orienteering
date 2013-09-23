@@ -3,6 +3,8 @@ Orienteering
 
 Orienteering Course Generator
 
+##Course Layout
+
 <pre>
 
                           
@@ -34,3 +36,16 @@ Orienteering Course Generator
             100           
                           
 </pre>
+
+##Things To Bring
+
+1. Rope
+2. Stakes
+3. Claw Hammer
+4. Duct Tape
+5. Marker
+6. Compasses
+7. Pens
+8. Routes
+9. Big Training Compass
+10. Envelope to hold completed routes
