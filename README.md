@@ -3,6 +3,7 @@ Orienteering
 
 Orienteering Course Generator
 
+<pre>
 
                           
      N          0         
@@ -32,3 +33,4 @@ Orienteering Course Generator
              |            
             100           
                           
+</pre>
